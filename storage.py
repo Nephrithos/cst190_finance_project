@@ -1,5 +1,34 @@
+"""Loading and saving the app's data as JSON files in the data/ folder.
+
+The data/ folder and files are created automatically if they don't exist.
+Data is checked on load: damaged entries are skipped, and a file that isn't
+valid JSON is kept as <name>.bak so nothing is lost.
+
+File formats:
+  categories.json   a list of names
+                    ["Rent", "Food"]
+
+  transaction.json  transaction ID -> transaction
+                    {"1": {"amount": 25.5, "type": "expense", "category": "Food",
+                           "date": "2026-10-25", "time": "13:30", "description": "Lunch"}}
+                    type is "expense" or "income". IDs are saved as text by JSON
+                    and turned back into ints on load. IDs are never reused.
+
+  goals.json        a list of goals
+                    [{"type": "spending limit", "amount": 200.0,
+                      "month": "2026-10", "category": "Food"}]
+                    type is "spending limit" or "saving". Saving goals have category "".
+
+Dates and months are saved year-first; see the date convention in helpers.py.
+Categories are stored by name (not position), so they stay correct if the
+category list changes.
+"""
+
 import json
 import os
+
+import config
+import helpers
 
 # Keep the data folder next to this file, so it works no matter where you run main.py from
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -8,21 +37,28 @@ CATEGORIES_FILE = os.path.join(DATA_DIR, "categories.json")
 TRANSACTIONS_FILE = os.path.join(DATA_DIR, "transaction.json")
 GOALS_FILE = os.path.join(DATA_DIR, "goals.json")
 
+TRANSACTION_FIELDS = ["amount", "type", "category", "date", "time", "description"]
+GOAL_FIELDS = ["type", "amount", "month", "category"]
+
 
 def _save_json(path: str, data) -> bool:
     """Write data to path, creating the data folder if needed."""
-    os.makedirs(DATA_DIR, exist_ok=True)
     try:
+        os.makedirs(DATA_DIR, exist_ok=True)
         with open(path, "w") as f:
             json.dump(data, f, indent=4)
         return True
-    except PermissionError:
-        print(f"Permission error: could not write {path}")
+    except OSError:
+        # OSError covers PermissionError, a full disk, a bad path and so on
+        print(f"Could not save {path}")
         return False
 
 
 def _load_json(path: str, default):
-    """Load JSON from path. If it is missing or broken, create it with the default."""
+    """Load JSON from path. If it is missing, create it with the default.
+
+    If it is broken, keep a copy as .bak (so nothing is lost) and start again with the default.
+    """
     if not os.path.exists(path):
         _save_json(path, default)
         return default
@@ -30,12 +66,91 @@ def _load_json(path: str, default):
         with open(path, "r") as f:
             return json.load(f)
     except json.JSONDecodeError:
-        print(f"Decoding error in {path}, creating new file")
+        print(f"{path} is damaged, saved a copy as {path}.bak and started a new one")
+        try:
+            os.replace(path, path + ".bak")
+        except OSError:
+            pass
         _save_json(path, default)
         return default
-    except PermissionError:
-        print(f"Permission error: could not read {path}, using defaults")
+    except OSError:
+        print(f"Could not read {path}, using defaults")
         return default
+
+
+def _has_fields(item, fields: list[str]) -> bool:
+    """Return True if item is a dictionary containing every field."""
+    if not isinstance(item, dict):
+        return False
+    for field in fields:
+        if field not in item:
+            return False
+    return True
+
+
+def _check_categories(raw, default_categories: list[str]) -> list[str]:
+    """Keep only text categories. Fall back to the defaults if none are left."""
+    categories: list[str] = []
+    if isinstance(raw, list):
+        for item in raw:
+            if isinstance(item, str) and item.strip() != "":
+                categories.append(item.strip())
+    if len(categories) == 0:
+        return list(default_categories)
+    return categories
+
+
+def _check_transactions(raw) -> dict[int, dict]:
+    """Keep only complete transactions with a whole-number ID, a valid type and a positive amount."""
+    transactions: dict[int, dict] = {}
+    if not isinstance(raw, dict):
+        return transactions
+    skipped = 0
+    repaired = 0
+    for key in raw:
+        item = raw[key]
+        try:
+            # JSON always stores dict keys as strings, so turn them back into ints
+            transaction_id = int(key)
+        except ValueError:
+            skipped += 1
+            continue
+        if (
+            _has_fields(item, TRANSACTION_FIELDS)
+            and item["type"] in config.EXPENSE_TYPES
+            and isinstance(item["amount"], (int, float))
+            and item["amount"] > 0
+        ):
+            # repair dates saved in the old dd-mm-yyyy format
+            if helpers.display_date(item["date"]) == item["date"]:
+                fixed_date = helpers.convert_date(item["date"])
+                if fixed_date != "":
+                    item["date"] = fixed_date
+                    repaired += 1
+            transactions[transaction_id] = item
+        else:
+            skipped += 1
+    if skipped > 0:
+        print(f"Skipped {skipped} damaged transaction(s) in {TRANSACTIONS_FILE}")
+    if repaired > 0:
+        print(f"Converted {repaired} old-format date(s) to the new format")
+        _save_json(TRANSACTIONS_FILE, transactions)
+    return transactions
+
+
+def _check_goals(raw) -> list[dict]:
+    """Keep only complete goals with a positive amount."""
+    goal_list: list[dict] = []
+    if not isinstance(raw, list):
+        return goal_list
+    for item in raw:
+        if (
+            _has_fields(item, GOAL_FIELDS)
+            and isinstance(item["amount"], (int, float))
+            and item["amount"] > 0
+        ):
+            goal_list.append(item)
+    return goal_list
 
 
 def write_file(
@@ -57,11 +172,10 @@ def write_file(
 def load_file(
     default_categories: list[str],
 ) -> tuple[list[str], dict[int, dict], list[dict]]:
-    """Load categories, transactions and goals, creating any file that doesn't exist."""
-    categories = _load_json(CATEGORIES_FILE, list(default_categories))
-    raw_transactions = _load_json(TRANSACTIONS_FILE, {})
-    goal_list = _load_json(GOALS_FILE, [])
-
-    # JSON always stores dict keys as strings, so turn them back into ints
-    transactions = {int(k): v for k, v in raw_transactions.items()}
+    """Load and check categories, transactions and goals, creating any file that doesn't exist."""
+    categories = _check_categories(
+        _load_json(CATEGORIES_FILE, list(default_categories)), default_categories
+    )
+    transactions = _check_transactions(_load_json(TRANSACTIONS_FILE, {}))
+    goal_list = _check_goals(_load_json(GOALS_FILE, []))
     return categories, transactions, goal_list
