@@ -3,19 +3,22 @@ import goals
 import helpers
 import storage
 
-# import summary
+import summary
 import transaction
 
 # Global variables
-default_categories = ["Rent", "Food", "Salary"]
+default_categories = ["Rent", "Food"]
 expenseType = ["expense", "income"]
 options = [
     "Transaction menu",
     "Category menu",
     "Search transactions",
     "Goals menu",
+    "Reports",
     "Exit",
 ]
+
+report_options = ["All time", "Single month"]
 
 goal_options = [
     "Set goal",
@@ -411,6 +414,33 @@ while True:
                 print("Enter a valid option")
 
     elif menu_input == 5:
+        while True:
+            report_index: int = helpers.select_from_list(
+                "Select report (leave blank for main menu): ", report_options
+            )
+            if report_index == -1:
+                show_main_menu()
+                break
+
+            if report_options[report_index] == "All time":
+                print(summary.build_report(transactions, "All time report"))
+            else:
+                today, now_time = helpers.get_date_time()
+                report_month: str = input(
+                    f"Enter month (yyyy-mm, leave blank for {today[:7]}): "
+                ).strip()
+                if report_month == "":
+                    report_month = today[:7]
+                month_transactions = transaction.search_transactions(
+                    transactions, "date", report_month
+                )
+                print(
+                    summary.build_report(
+                        month_transactions, f"Report for {report_month}"
+                    )
+                )
+
+    elif menu_input == 6:
         break
     else:
         print("Enter a valid option")
