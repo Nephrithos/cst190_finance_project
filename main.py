@@ -21,7 +21,8 @@ handled by its own module, and the actual data work lives in separate files:
     storage.py   loading and saving the JSON files (data formats are described there)
     config.py    menu options, allowed values and limits
 
-The loaded data (categories, transactions, goal_list) is passed into each menu.
+The loaded data (categories, transactions, goal_list, counters) is passed into
+each menu that needs it.
 Menus change it in place and save straight away, so main never needs to reload it.
 """
 
@@ -43,7 +44,9 @@ def show_main_menu(transactions: dict[int, dict], main_menu: str) -> None:
 
 
 def main() -> None:
-    categories, transactions, goal_list = storage.load_file(config.DEFAULT_CATEGORIES)
+    categories, transactions, goal_list, counters = storage.load_file(
+        config.DEFAULT_CATEGORIES
+    )
     main_menu = helpers.build_menu(config.MAIN_OPTIONS)
 
     show_main_menu(transactions, main_menu)
@@ -56,7 +59,7 @@ def main() -> None:
         )
 
         if menu_choice == 0:
-            menu_transactions.run(transactions, categories)
+            menu_transactions.run(transactions, categories, counters)
         elif menu_choice == 1:
             menu_categories.run(categories, transactions, goal_list)
         elif menu_choice == 2:
@@ -76,9 +79,9 @@ def main() -> None:
 # (for example by a test file)
 if __name__ == "__main__":
     # Ctrl+C raises KeyboardInterrupt and Ctrl+D (Ctrl+Z on Windows) raises EOFError
-    # while input() is waiting. Every change is saved as soon as it's made, so it's
-    # safe to just exit quietly instead of showing a traceback.
+    # while input() is waiting. Every change is saved as soon as it's made (and the
+    # user is warned if a save fails), so it's safe to exit quietly without a traceback.
     try:
         main()
     except (KeyboardInterrupt, EOFError):
-        print("\nExiting, all changes are saved")
+        print("\nExiting")

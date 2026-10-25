@@ -13,11 +13,14 @@ import helpers
 def set_goal(
     goal_list: list[dict],
     goal_type: str,
-    amount: float,
+    amount: int,
     month: str,
     category: str = "",
 ) -> None:
-    """Add a goal. month is "yyyy-mm". category is only used for spending limits."""
+    """Add a goal. amount is in whole cents, month is "yyyy-mm".
+
+    category is only used for spending limits.
+    """
     goal_list.append(
         {
             "type": goal_type,
@@ -59,9 +62,9 @@ def category_in_use(goal_list: list[dict], category: str) -> bool:
 
 def _month_total(
     transactions: dict[int, dict], month: str, expense_type: str, category: str = ""
-) -> float:
-    """Add up transactions of one type in a month, optionally for one category only."""
-    total = 0.0
+) -> int:
+    """Add up transactions of one type in a month (in cents), optionally for one category only."""
+    total = 0
     for transaction_id in transactions:
         t = transactions[transaction_id]
         if t["date"].startswith(month) and t["type"] == expense_type:

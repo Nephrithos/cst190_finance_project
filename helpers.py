@@ -90,21 +90,47 @@ def get_text(prompt: str, allow_blank: bool, max_length: int) -> str:
             return text
 
 
-def get_amount(prompt: str) -> float:
-    """Ask until the user enters a positive amount with at most 2 decimal places."""
+MAX_CENTS = 100_000_000_000  # $1,000,000,000.00, a sanity limit on one amount
+
+
+def parse_cents(text: str) -> int:
+    """Turn typed money such as "25", "25.5", ".50" or "$1,250.50" into whole cents.
+
+    Returns -1 if it isn't a plain positive amount, and -2 if it has more than
+    2 decimal places. The text is read digit by digit rather than through
+    float(), so the result is exact (float("0.29") * 100 is 28.999999999999996).
+    """
+    text = text.strip().replace("$", "").replace(",", "")
+    if text.count(".") > 1:
+        return -1
+    if "." in text:
+        dollars, cents = text.split(".")
+    else:
+        dollars, cents = text, ""
+    if dollars == "":
+        dollars = "0"  # allows ".50"
+    # isdecimal() rejects signs, spaces, "e" notation, "nan" and "inf"
+    if not dollars.isdecimal() or (cents != "" and not cents.isdecimal()):
+        return -1
+    if len(cents) > 2:
+        return -2
+    return int(dollars) * 100 + int(cents.ljust(2, "0"))
+
+
+def get_amount(prompt: str) -> int:
+    """Ask until the user enters a positive amount with at most 2 decimal places.
+
+    Returns the amount in whole cents ($25.50 -> 2550). Money is kept in
+    cents everywhere so adding it up is exact.
+    """
     while True:
-        entry = input(prompt).strip().replace("$", "").replace(",", "")
-        try:
-            amount = float(entry)
-        except ValueError:
-            amount = 0
-        # the upper limit also rejects "inf", and "nan" fails both comparisons
-        if not 0 < amount <= 1_000_000_000:
-            print("Enter an amount greater than 0, e.g. 25.50")
-        elif round(amount, 2) != amount:
+        cents = parse_cents(input(prompt))
+        if cents == -2:
             print("Use at most 2 decimal places")
+        elif not 0 < cents <= MAX_CENTS:
+            print("Enter an amount greater than 0, e.g. 25.50")
         else:
-            return round(amount, 2)
+            return cents
 
 
 def get_transaction_id(prompt: str, transactions: dict[int, dict]) -> int:
@@ -122,11 +148,14 @@ def get_transaction_id(prompt: str, transactions: dict[int, dict]) -> int:
         print("Transaction not found, enter an ID from the table")
 
 
-def format_money(amount: float) -> str:
-    """Format an amount as $1,234.50, with any minus sign in front of the $."""
-    if amount < 0:
-        return f"-${-amount:,.2f}"
-    return f"${amount:,.2f}"
+def format_money(cents: int) -> str:
+    """Format whole cents as $1,234.50, with any minus sign in front of the $.
+
+    Uses whole-number division, not float, so the cents printed are exact.
+    """
+    sign = "-" if cents < 0 else ""
+    dollars, remainder = divmod(abs(cents), 100)
+    return f"{sign}${dollars:,}.{remainder:02d}"
 
 
 # ---------- dates and times ----------

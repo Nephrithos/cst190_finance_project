@@ -48,3 +48,9 @@ SEARCH_FIELDS = ["date", "category", "type", "description"]
 DATE_TIME_OPTIONS = ["Use current date and time", "Enter manually"]
 
 SUBMENU_PROMPT = "Select menu option (leave blank for main menu): "
+
+# Shown when storage.write_file returns False, so the user never thinks
+# an unsaved change is safe
+SAVE_FAILED = (
+    "Warning: this change could not be saved and will be lost when the app closes"
+)

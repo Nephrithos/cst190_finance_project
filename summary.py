@@ -11,10 +11,10 @@ import helpers
 REPORT_WIDTH = 52  # total width of every report line
 
 
-def calculate_totals(transactions: dict[int, dict]) -> tuple[float, float, float]:
-    """Return (total income, total expenses, net) for the given transactions."""
-    income = 0.0
-    expenses = 0.0
+def calculate_totals(transactions: dict[int, dict]) -> tuple[int, int, int]:
+    """Return (total income, total expenses, net) in cents for the given transactions."""
+    income = 0
+    expenses = 0
     for transaction_id in transactions:
         t = transactions[transaction_id]
         if t["type"] == "income":
@@ -24,28 +24,28 @@ def calculate_totals(transactions: dict[int, dict]) -> tuple[float, float, float
     return income, expenses, income - expenses
 
 
-def spend_per_cat(transactions: dict[int, dict]) -> dict[str, float]:
-    """Return total spending for each category (expenses only)."""
-    totals: dict[str, float] = {}
+def spend_per_cat(transactions: dict[int, dict]) -> dict[str, int]:
+    """Return total spending in cents for each category (expenses only)."""
+    totals: dict[str, int] = {}
     for transaction_id in transactions:
         t = transactions[transaction_id]
         if t["type"] == "expense":
             if t["category"] not in totals:
-                totals[t["category"]] = 0.0
+                totals[t["category"]] = 0
             totals[t["category"]] += t["amount"]
     return totals
 
 
-def monthly_breakdown(transactions: dict[int, dict]) -> dict[str, dict[str, float]]:
-    """Return income and expense totals for each month, keyed by "yyyy-mm"."""
-    months: dict[str, dict[str, float]] = {}
+def monthly_breakdown(transactions: dict[int, dict]) -> dict[str, dict[str, int]]:
+    """Return income and expense totals in cents for each month, keyed by "yyyy-mm"."""
+    months: dict[str, dict[str, int]] = {}
     for transaction_id in transactions:
         t = transactions[transaction_id]
         month = t["date"][
             :7
         ]  # dates are yyyy-mm-dd, so the first 7 characters are yyyy-mm
         if month not in months:
-            months[month] = {"income": 0.0, "expense": 0.0}
+            months[month] = {"income": 0, "expense": 0}
         months[month][t["type"]] += t["amount"]
     return months
 

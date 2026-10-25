@@ -10,7 +10,9 @@ import storage
 import transaction
 
 
-def add_transaction_entry(transactions: dict[int, dict], categories: list[str]) -> None:
+def add_transaction_entry(
+    transactions: dict[int, dict], categories: list[str], counters: dict[str, int]
+) -> None:
     """Ask for every field of a new transaction, then add and save it."""
     amount = helpers.get_amount("Enter amount: ")
     expense_type = helpers.choose_item("Select expense type: ", config.EXPENSE_TYPES)
@@ -34,6 +36,7 @@ def add_transaction_entry(transactions: dict[int, dict], categories: list[str]) 
 
     new_id = transaction.add_transaction(
         transactions,
+        counters,
         amount,
         expense_type,
         expense_category,
@@ -41,8 +44,11 @@ def add_transaction_entry(transactions: dict[int, dict], categories: list[str]) 
         expense_time,
         expense_description,
     )
-    storage.write_file(transactions=transactions)
-    print(f"Added transaction {new_id}")
+    # The counter is saved with the transaction so the ID is never handed out again
+    if storage.write_file(transactions=transactions, counters=counters):
+        print(f"Added transaction {new_id}")
+    else:
+        print(config.SAVE_FAILED)
 
 
 def edit_transaction_entry(
@@ -63,6 +69,8 @@ def edit_transaction_entry(
     field = helpers.choose_item("Select field to edit: ", config.EDIT_FIELDS)
 
     # Each field gets the same validation it had when the transaction was added
+    # new_value is cents (an int) for amount, and text for every other field
+    new_value: int | str
     if field == "amount":
         new_value = helpers.get_amount("New amount: ")
     elif field == "type":
@@ -79,8 +87,10 @@ def edit_transaction_entry(
         )
 
     transaction.edit_transaction(transactions, edit_id, field, new_value)
-    storage.write_file(transactions=transactions)
-    print(f"Updated {field} for transaction {edit_id}")
+    if storage.write_file(transactions=transactions):
+        print(f"Updated {field} for transaction {edit_id}")
+    else:
+        print(config.SAVE_FAILED)
 
 
 def delete_transaction_entry(transactions: dict[int, dict]) -> None:
@@ -99,13 +109,17 @@ def delete_transaction_entry(transactions: dict[int, dict]) -> None:
     # There's no undo, so always confirm
     if helpers.confirm(f"Delete transaction {delete_id}? (y/n): "):
         transaction.delete_transaction(transactions, delete_id)
-        storage.write_file(transactions=transactions)
-        print(f"Deleted transaction {delete_id}")
+        if storage.write_file(transactions=transactions):
+            print(f"Deleted transaction {delete_id}")
+        else:
+            print(config.SAVE_FAILED)
     else:
         print("Delete cancelled")
 
 
-def run(transactions: dict[int, dict], categories: list[str]) -> None:
+def run(
+    transactions: dict[int, dict], categories: list[str], counters: dict[str, int]
+) -> None:
     """Show the transaction menu until the user leaves it blank."""
     while True:
         choice = helpers.select_from_list(
@@ -114,7 +128,7 @@ def run(transactions: dict[int, dict], categories: list[str]) -> None:
         if choice == -1:
             return
         if choice == 0:
-            add_transaction_entry(transactions, categories)
+            add_transaction_entry(transactions, categories, counters)
         elif choice == 1:
             edit_transaction_entry(transactions, categories)
         else:

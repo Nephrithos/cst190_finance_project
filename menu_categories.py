@@ -21,8 +21,10 @@ def add_category_entry(categories: list[str]) -> None:
     )
     # add_category compares names ignoring case, so "food" and "Food" count as the same
     if category.add_category(new_category, categories):
-        storage.write_file(categories=categories)
-        print(f"Added {new_category}")
+        if storage.write_file(categories=categories):
+            print(f"Added {new_category}")
+        else:
+            print(config.SAVE_FAILED)
     else:
         print(f"{new_category} already exists")
 
@@ -40,10 +42,12 @@ def edit_category_entry(
     if category.edit_category(old_name, new_name, categories):
         transaction.rename_category(transactions, old_name, new_name)
         goals.rename_category(goal_list, old_name, new_name)
-        storage.write_file(
+        if storage.write_file(
             categories=categories, transactions=transactions, goals=goal_list
-        )
-        print(f"Renamed {old_name} to {new_name}")
+        ):
+            print(f"Renamed {old_name} to {new_name}")
+        else:
+            print(config.SAVE_FAILED)
     else:
         print(f"{new_name} already exists")
 
@@ -70,8 +74,10 @@ def delete_category_entry(
 
     if helpers.confirm(f"Delete {remove_name}? (y/n): "):
         category.remove_category(remove_name, categories)
-        storage.write_file(categories=categories)
-        print(f"Deleted {remove_name}")
+        if storage.write_file(categories=categories):
+            print(f"Deleted {remove_name}")
+        else:
+            print(config.SAVE_FAILED)
     else:
         print("Delete cancelled")
 

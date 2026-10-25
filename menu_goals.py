@@ -30,8 +30,10 @@ def set_goal_entry(goal_list: list[dict], categories: list[str]) -> None:
         return
 
     goals.set_goal(goal_list, goal_type, goal_amount, goal_month, goal_category)
-    storage.write_file(goals=goal_list)
-    print("Goal added")
+    if storage.write_file(goals=goal_list):
+        print("Goal added")
+    else:
+        print(config.SAVE_FAILED)
 
 
 def check_goals_entry(goal_list: list[dict], transactions: dict[int, dict]) -> None:
@@ -64,8 +66,10 @@ def delete_goal_entry(goal_list: list[dict], transactions: dict[int, dict]) -> N
 
     if helpers.confirm("Delete this goal? (y/n): "):
         goal_list.pop(delete_index)
-        storage.write_file(goals=goal_list)
-        print("Goal deleted")
+        if storage.write_file(goals=goal_list):
+            print("Goal deleted")
+        else:
+            print(config.SAVE_FAILED)
     else:
         print("Delete cancelled")
 

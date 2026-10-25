@@ -8,26 +8,36 @@ input or save to disk. The menus do that, so the logic can be tested on its own.
 import helpers
 
 
-def _next_id(transactions: dict[int, dict]) -> int:
-    """Return one higher than the biggest existing ID, or 1 if there are none."""
+def highest_id(transactions: dict[int, dict]) -> int:
+    """Return the biggest ID in use, or 0 if there are no transactions."""
     highest = 0
     for transaction_id in transactions:
         if transaction_id > highest:
             highest = transaction_id
-    return highest + 1
+    return highest
 
 
 def add_transaction(
     transactions: dict[int, dict],
-    amount: float,
+    counters: dict[str, int],
+    amount: int,
     expense_type: str,
     category: str,
     date: str,
     time: str,
     description: str,
 ) -> int:
-    """Add a transaction and return its new ID. date must be yyyy-mm-dd."""
-    new_id = _next_id(transactions)
+    """Add a transaction and return its new ID.
+
+    amount is in whole cents (2550 = $25.50) and date must be yyyy-mm-dd.
+
+    The ID comes from counters["next_transaction_id"], which only ever goes up
+    and is saved to disk, so a deleted transaction's ID is never handed out again.
+    (Working it out as "highest ID + 1" would reuse the ID of a deleted newest one.)
+    Save counters along with transactions after calling this.
+    """
+    new_id = counters["next_transaction_id"]
+    counters["next_transaction_id"] = new_id + 1
     transactions[new_id] = {
         "amount": amount,
         "type": expense_type,
